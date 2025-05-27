@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment
+.env
+*.env
+*.venv/
+.envrc
+.env.*
+
+# Chrome / WebDrivers (optional)
+browser/c*
+
+# macOS
+.DS_Store
+
+# VSCode
+.vscode/
+
+# OS-specific
+Thumbs.db
