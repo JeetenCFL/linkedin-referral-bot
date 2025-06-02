@@ -1,7 +1,8 @@
 {
-    "job_keywords": ["backend", "python"],
-    "locations": ["remote", "india"],
+    "job_keywords": ["LLM", "Machine Learning"],
+    "locations": ["Canada"],
     "universities": ["IIT", "BITS Pilani"],
     "custom_message": "Hi, I saw you're working at {{company}}. I'm really interested in the backend role listed...",
-    "prompt": "My name is X. I am looking for mid-level backend roles using Python or Go..."
-  }
+    "prompt": "My name is X. I am looking for mid-level backend roles using Python or Go...",
+    "date_posted_filter": "past_week"
+}
