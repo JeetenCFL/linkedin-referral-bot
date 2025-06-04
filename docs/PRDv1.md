@@ -118,13 +118,13 @@ linkedin-automation-bot/
 	•	Login
 	•	Job search
 	•	Click job + extract description
-	•	Navigate to company → people tab
 
 🔜 Phase 2: AI Filtering
 	•	Call OpenAI API with job description
 	•	Classify job as relevant or not
 
 🔜 Phase 3: People Filtering & Outreach
+	•	Navigate to company → people tab
 	•	Identify contacts via shared university or role match
 	•	Send personalized connection requests
 

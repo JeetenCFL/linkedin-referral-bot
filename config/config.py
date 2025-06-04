@@ -37,7 +37,7 @@ SELECTORS = {
         "search_input": "//input[contains(@aria-label, 'Search by title, skill, or company')]",
         "location_input": "//input[contains(@aria-label, 'City, state, or zip code')]",
         "search_button": "//button[contains(@type, 'submit')]",
-        "job_cards": "//div[contains(@class, 'job-card-container')]",
+        "job_cards": "//div[contains(@class, 'job-card-list--underline-title-on-hover')]",
         "date_posted_button": "//button[contains(@aria-label, 'Date posted filter. Clicking this button displays all Date posted filter options.')]",
         "date_posted_options": {
             "past_24_hours": "//input[@id='timePostedRange-r86400']",
@@ -45,6 +45,9 @@ SELECTORS = {
             "past_month": "//input[@id='timePostedRange-r2592000']",
             "any_time": "//input[@id='timePostedRange-']"
         },
-        "apply_filter_button": "//button[contains(@class, 'artdeco-button--primary') and contains(@aria-label, 'Apply current filter')]"
+        "apply_filter_button": "//button[contains(@class, 'artdeco-button--primary') and contains(@aria-label, 'Apply current filter')]",
+        "scroll_sentinel": "//div[@data-results-list-top-scroll-sentinel]",
+        "next_page_button": "//button[contains(@class, 'jobs-search-pagination__button--next')]",
+        "job_description": "//div[contains(@class, 'jobs-description-content__text')]"
     }
 } 

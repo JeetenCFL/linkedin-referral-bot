@@ -1,5 +1,5 @@
 {
-    "job_keywords": ["LLM", "Machine Learning"],
+    "job_keywords": ["AI", "ML"],
     "locations": ["Canada"],
     "universities": ["IIT", "BITS Pilani"],
     "custom_message": "Hi, I saw you're working at {{company}}. I'm really interested in the backend role listed...",

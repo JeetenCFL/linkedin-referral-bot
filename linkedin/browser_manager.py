@@ -19,6 +19,12 @@ class BrowserManager:
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         
+        # Prevent Chrome from pausing JS timers or throttling-
+        # invisible‐page rendering when window is hidden/minimized.
+        options.add_argument("--disable-background-timer-throttling")
+        options.add_argument("--disable-backgrounding-occluded-windows")
+        options.add_argument("--disable-renderer-backgrounding")
+
         # Set a custom user agent to mimic a regular Chrome browser on macOS
         # This helps avoid detection as an automated browser by websites
         # The user agent string identifies the browser as:
@@ -102,4 +108,4 @@ class BrowserManager:
         if self.driver:
             self.driver.quit()
             self.driver = None
-            self.wait = None 
+            self.wait = None
