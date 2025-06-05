@@ -1,17 +1,5 @@
 from linkedin.linkedin_bot import LinkedInBot
 import time
-import json
-from datetime import datetime
-
-def save_job_descriptions(job_descriptions):
-    """Save job descriptions to a JSON file with timestamp."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"job_descriptions_{timestamp}.json"
-    
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(job_descriptions, f, indent=2, ensure_ascii=False)
-    
-    print(f"\nSaved {len(job_descriptions)} job descriptions to {filename}")
 
 def main():
     # Initialize the bot
@@ -34,14 +22,11 @@ def main():
             if bot.search_jobs():
                 print("Successfully found job listings!")
                 
-                # Process all job listings
+                # Process all job listings (now includes real-time scoring)
                 print("\nStarting to process job listings...")
-                job_descriptions = bot.process_job_listings()
+                job_descriptions, jobs_file = bot.process_job_listings()
                 
-                # Save the results
-                if job_descriptions:
-                    save_job_descriptions(job_descriptions)
-                else:
+                if not job_descriptions:
                     print("No job descriptions were collected.")
                 
                 print("\nBrowser will remain open. Press Enter to exit when you're done.")

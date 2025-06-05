@@ -3,6 +3,6 @@
     "locations": ["Canada"],
     "universities": ["IIT", "BITS Pilani"],
     "custom_message": "Hi, I saw you're working at {{company}}. I'm really interested in the backend role listed...",
-    "prompt": "My name is X. I am looking for mid-level backend roles using Python or Go...",
+    "my_needs": "I am looking for a software engineering role with a focus on Python development. I prefer remote positions or opportunities in major tech hubs. I'm interested in roles that involve AI/ML, automation, or full-stack development. I value companies with strong engineering culture and opportunities for growth. I have 5+ years of experience and am looking for senior or lead positions.",
     "date_posted_filter": "past_week"
 }

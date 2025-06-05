@@ -4,6 +4,8 @@ from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 import hashlib
+import time
+from datetime import datetime
 
 from config.config import (
     LINKEDIN_LOGIN_URL,
@@ -14,13 +16,14 @@ from config.config import (
     LOGIN_TIMEOUT
 )
 from .browser_manager import BrowserManager
-import time
+from .ai_matcher import JobMatcher
 
 class LinkedInBot:
     def __init__(self):
         self.browser = BrowserManager()
         self.driver = None
         self.settings = self._load_settings()
+        self.job_matcher = JobMatcher()
 
     def _load_settings(self):
         """Load settings from Settings.json file."""
@@ -34,7 +37,7 @@ class LinkedInBot:
                 "locations": [],
                 "universities": [],
                 "custom_message": "",
-                "prompt": ""
+                "my_needs": ""
             }
 
     def _format_search_query(self, keywords):
@@ -388,10 +391,10 @@ class LinkedInBot:
             if company_div:
                 company_name = company_div.text.strip()
                 company_url = company_div.get_attribute('href')
-                return company_name, company_url
-            return None, None
+                return {"name": company_name, "url": company_url}
+            return None
         except TimeoutException:
-            return None, None
+            return None
 
     def _extract_job_url_and_title(self):
         """Extract job title and LinkedIn URL from the job details."""
@@ -402,10 +405,10 @@ class LinkedInBot:
             if job_title_div:
                 job_title = job_title_div.text.strip()
                 job_url = job_title_div.get_attribute('href')
-                return job_title, job_url
-            return None, None
+                return {"title": job_title, "url": job_url}
+            return None
         except TimeoutException:
-            return None, None
+            return None
 
     def _generate_job_id(self, company_name, company_url, job_title, job_url, job_description):
         """Generate a unique job ID by hashing the job details."""
@@ -443,84 +446,100 @@ class LinkedInBot:
             return None
 
     def process_job_listings(self):
-        """Process all job listings across all pages."""
-        all_job_descriptions = []
-        page_number = 1
-        
-        # Get total job count at the start
+        """Process all job listings and score them in real-time."""
+        job_descriptions = {}
+        scored_jobs = {}
         total_jobs = self._get_total_job_count()
-        if not total_jobs:
-            print("❌ Could not determine total number of jobs")
-            return all_job_descriptions
-
+        processed_count = 0
+        
+        # Create timestamped filenames
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        jobs_file = f"job_descriptions_{timestamp}.json"
+        scored_file = f"job_descriptions_scored_{timestamp}.json"
+        
+        print(f"\nFound {total_jobs} jobs to process")
+        print(f"Jobs will be saved to: {jobs_file}")
+        print(f"Scores will be saved to: {scored_file}")
+        
         while True:
-            print(f"\nProcessing page {page_number}...")
-            
             # Get all job cards on current page
             job_cards = self._get_job_cards_on_current_page()
-            if not job_cards:
-                print("No job cards found on this page.")
-                break
-
-            # Process each job card
-            for index, job_card in enumerate(job_cards, 1):
+            
+            for card in job_cards:
                 try:
-                    # Scroll job card into view and click
-                    self.browser.ensure_element_in_viewport(job_card)
-                    print("job_card.text.strip(): ", job_card.text.strip().split('\n')[0])
-                    job_title = job_card.text.strip().split('\n')[0]
-                    print(f"\nProcessing job {index}/{len(job_cards)}: {job_title}")
+                    # Click the job card to load details
+                    self.browser.ensure_element_in_viewport(card)
+                    card.click()
+                    time.sleep(2)  # Wait for job details to load
                     
-                    job_card.click()
-                    time.sleep(1)  # Wait for job details to load
-
-                    # Extract all job information
-                    company_name, company_url = self._extract_company_info()
-                    job_title, job_url = self._extract_job_url_and_title()
+                    # Extract job information
+                    company_info = self._extract_company_info()
+                    job_info = self._extract_job_url_and_title()
                     job_description = self._extract_job_description()
-
-                    if all([company_name, company_url, job_title, job_url, job_description]):
-                        # Generate unique job ID including job description
-                        job_id = self._generate_job_id(company_name, company_url, job_title, job_url, job_description)
+                    
+                    if all([company_info, job_info, job_description]):
+                        # Generate unique job ID
+                        job_id = self._generate_job_id(
+                            company_info["name"],
+                            company_info["url"],
+                            job_info["title"],
+                            job_info["url"],
+                            job_description
+                        )
                         
-                        all_job_descriptions.append({
-                            'job_id': job_id,
-                            'company_name': company_name,
-                            'company_url': company_url,
-                            'job_title': job_title,
-                            'job_url': job_url,
-                            'description': job_description
-                        })
-                        print("✅ Successfully extracted job information")
-                    else:
-                        print("❌ Failed to extract complete job information")
-
+                        # Create job data
+                        job_data = {
+                            "company_name": company_info["name"],
+                            "company_url": company_info["url"],
+                            "job_title": job_info["title"],
+                            "job_url": job_info["url"],
+                            "job_description": job_description,
+                            "scraped_at": datetime.now().isoformat()
+                        }
+                        
+                        # Add to job descriptions
+                        job_descriptions[job_id] = job_data
+                        
+                        # Save raw job data
+                        with open(jobs_file, 'w') as f:
+                            json.dump(job_descriptions, f, indent=2)
+                        
+                        # Score the job immediately
+                        print(f"\nScoring job: {job_info['title']} at {company_info['name']}")
+                        match_score = self.job_matcher.get_match_score(job_description)
+                        
+                        # Create scored job data
+                        scored_job = {
+                            **job_data,
+                            'match_score': match_score,
+                            'scored_at': datetime.now().isoformat()
+                        }
+                        
+                        # Add to scored jobs
+                        scored_jobs[job_id] = scored_job
+                        
+                        # Save scored job data
+                        with open(scored_file, 'w') as f:
+                            json.dump(scored_jobs, f, indent=2)
+                        
+                        print(f"Score: {match_score}/10")
+                        
+                        processed_count += 1
+                        print(f"\rProcessed {processed_count}/{total_jobs} jobs", end="")
+                    
                 except Exception as e:
-                    print(f"Error processing job card: {str(e)}")
+                    print(f"\nError processing job card: {str(e)}")
                     continue
-
-            # Check if we've processed all jobs
-            if len(all_job_descriptions) >= total_jobs:
-                print(f"\n✅ Successfully processed all {total_jobs} jobs!")
-                break
-
+            
             # Check if there's a next page
             if not self._has_next_page():
-                print("\nReached last page of results.")
                 break
-
+                
             # Go to next page
             if not self._go_to_next_page():
-                print("\nFailed to navigate to next page.")
                 break
-
-            page_number += 1
-
-        # Validate total count
-        if len(all_job_descriptions) != total_jobs:
-            print(f"\n⚠️ Warning: Expected {total_jobs} jobs but processed {len(all_job_descriptions)} jobs")
-            print("This might indicate some jobs were missed")
-        else:
-            print(f"\n✅ Successfully processed all {total_jobs} jobs!")
-
-        return all_job_descriptions 
+        
+        print(f"\nFinished processing all jobs.")
+        print(f"Raw jobs saved to: {jobs_file}")
+        print(f"Scored jobs saved to: {scored_file}")
+        return job_descriptions, jobs_file 
