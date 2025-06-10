@@ -1,11 +1,18 @@
 import json
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import (
+    TimeoutException,
+    NoSuchElementException,
+    WebDriverException,
+    StaleElementReferenceException
+)
 from selenium.webdriver.support.ui import WebDriverWait
 import hashlib
 import time
 from datetime import datetime
+import os
+from typing import Optional, Dict, Any
 
 from config.config import (
     LINKEDIN_LOGIN_URL,
@@ -15,23 +22,37 @@ from config.config import (
     SELECTORS,
     LOGIN_TIMEOUT
 )
+from config.logging_config import log_manager
 from .browser_manager import BrowserManager
 from .ai_matcher import JobMatcher
 
+class LinkedInBotError(Exception):
+    """Base exception class for LinkedInBot errors"""
+    pass
+
 class LinkedInBot:
     def __init__(self):
+        self._setup_directories()
+        self.logger = log_manager.get_logger(__name__)
         self.browser = BrowserManager()
         self.driver = None
         self.settings = self._load_settings()
         self.job_matcher = JobMatcher()
+        # Use the timestamp from log manager
+        self.run_timestamp = log_manager.timestamp
 
-    def _load_settings(self):
+    def _setup_directories(self):
+        """Create necessary directories for logs and data"""
+        # Create data directory for job descriptions and scores
+        os.makedirs('data', exist_ok=True)
+
+    def _load_settings(self) -> Dict[str, Any]:
         """Load settings from Settings.json file."""
         try:
             with open('config/Settings.json', 'r') as f:
                 return json.load(f)
         except FileNotFoundError:
-            print("Warning: Settings.json not found. Using default settings.")
+            self.logger.warning("Settings.json not found. Using default settings.")
             return {
                 "job_keywords": [],
                 "locations": [],
@@ -39,17 +60,27 @@ class LinkedInBot:
                 "custom_message": "",
                 "my_needs": ""
             }
+        except json.JSONDecodeError as e:
+            self.logger.error(f"Error parsing Settings.json: {str(e)}")
+            raise LinkedInBotError("Invalid Settings.json format")
 
     def _format_search_query(self, keywords):
         """Format keywords with AND operator for LinkedIn search."""
         return " AND ".join(f'{keyword}' for keyword in keywords)
 
-    def start(self):
+    def start(self) -> bool:
         """Initialize the browser and start the bot."""
-        self.driver = self.browser.initialize_browser()
-        return self
+        try:
+            self.driver = self.browser.initialize_browser()
+            if not self.driver:
+                self.logger.error("Failed to initialize browser")
+                return False
+            return True
+        except WebDriverException as e:
+            self.logger.error(f"Browser initialization failed: {str(e)}")
+            return False
 
-    def login(self):
+    def login(self) -> bool:
         """Log in to LinkedIn."""
         try:
             # Navigate to login page
@@ -60,24 +91,30 @@ class LinkedInBot:
                 (By.ID, SELECTORS["login"]["email_field"]),
                 LOGIN_TIMEOUT
             )
-            if email_field:
-                email_field.send_keys(LINKEDIN_EMAIL)
+            if not email_field:
+                self.logger.error("Email field not found")
+                return False
+            email_field.send_keys(LINKEDIN_EMAIL)
             
             # Wait for and fill in password
             password_field = self.browser.wait_for_element(
                 (By.ID, SELECTORS["login"]["password_field"]),
                 LOGIN_TIMEOUT
             )
-            if password_field:
-                password_field.send_keys(LINKEDIN_PASSWORD)
+            if not password_field:
+                self.logger.error("Password field not found")
+                return False
+            password_field.send_keys(LINKEDIN_PASSWORD)
             
             # Click submit button
             submit_button = self.browser.wait_for_element(
                 (By.XPATH, SELECTORS["login"]["submit_button"]),
                 LOGIN_TIMEOUT
             )
-            if submit_button:
-                submit_button.click()
+            if not submit_button:
+                self.logger.error("Submit button not found")
+                return False
+            submit_button.click()
             
             # Wait for feed to load (indicating successful login)
             feed_button = self.browser.wait_for_element(
@@ -85,10 +122,21 @@ class LinkedInBot:
                 LOGIN_TIMEOUT
             )
             
-            return bool(feed_button)
+            if not feed_button:
+                self.logger.error("Feed button not found after login attempt")
+                return False
+                
+            self.logger.info("Successfully logged in to LinkedIn")
+            return True
             
         except TimeoutException as e:
-            print(f"Login failed: {str(e)}")
+            self.logger.error(f"Login timeout: {str(e)}")
+            return False
+        except WebDriverException as e:
+            self.logger.error(f"Browser error during login: {str(e)}")
+            return False
+        except Exception as e:
+            self.logger.exception("Unexpected error during login")
             return False
 
     def _apply_date_filter(self):
@@ -179,13 +227,8 @@ class LinkedInBot:
         print("[Date Filter] ✅ Filter applied")
         return True
 
-    def search_jobs(self, job_title=None, location=None):
-        """Search for jobs with given criteria.
-        
-        Args:
-            job_title (str, optional): Override job title from settings
-            location (str, optional): Override location from settings
-        """
+    def search_jobs(self, job_title: Optional[str] = None, location: Optional[str] = None) -> bool:
+        """Search for jobs with given criteria."""
         try:
             # Navigate to jobs page
             self.driver.get(LINKEDIN_JOBS_URL)
@@ -197,76 +240,104 @@ class LinkedInBot:
             search_input = self.browser.wait_for_element(
                 (By.XPATH, SELECTORS["jobs"]["search_input"])
             )
-            if search_input:
-                search_input.clear()
-                search_input.send_keys(search_query)
+            if not search_input:
+                self.logger.error("Search input field not found")
+                return False
+                
+            search_input.clear()
+            search_input.send_keys(search_query)
             
             # Use provided location or first location from settings
             location_to_use = location if location else self.settings["locations"][0] if self.settings["locations"] else "Worldwide"
-            print(f"Location to use: {location_to_use}")
+            self.logger.info(f"Using location: {location_to_use}")
             
             # Wait for and fill in location
             location_input = self.browser.wait_for_element(
                 (By.XPATH, SELECTORS["jobs"]["location_input"])
             )
-            if location_input and location_to_use:
-                # Add a small delay to allow default suggestions to appear
-                time.sleep(1)
-                location_input.clear()
-                location_input.send_keys(location_to_use)
-                location_input.send_keys(Keys.RETURN)
+            if not location_input:
+                self.logger.error("Location input field not found")
+                return False
+                
+            time.sleep(1)  # Allow default to populate
+            location_input.clear()
+            location_input.send_keys(location_to_use)
+            time.sleep(1)  # Allow suggestions to appear
+            location_input.send_keys(Keys.RETURN)
             
-            # Apply date filter if specified in settings
+            # Apply date filter if specified
             if "date_posted_filter" in self.settings:
                 try:
                     if not self._apply_date_filter():
-                        print("Warning: Failed to apply date filter, continuing with unfiltered results")
+                        self.logger.warning("Failed to apply date filter, continuing with unfiltered results")
                 except Exception as e:
-                    print(f"Error during date filter application: {str(e)}")
-                    print("Continuing with unfiltered results")
+                    self.logger.error(f"Error during date filter application: {str(e)}")
+                    self.logger.info("Continuing with unfiltered results")
+            
+            time.sleep(2)  # Wait for page to stabilize
             
             # Wait for job results to load
             job_cards = self.browser.wait_for_element(
                 (By.XPATH, SELECTORS["jobs"]["job_cards"])
             )
             
-            return bool(job_cards)
+            if not job_cards:
+                self.logger.error("No job cards found after search")
+                return False
+                
+            self.logger.info("Successfully found job listings")
+            return True
             
         except TimeoutException as e:
-            print(f"Job search failed: {str(e)}")
+            self.logger.error(f"Search timeout: {str(e)}")
+            return False
+        except WebDriverException as e:
+            self.logger.error(f"Browser error during search: {str(e)}")
+            return False
+        except Exception as e:
+            self.logger.exception("Unexpected error during job search")
             return False
 
     def quit(self):
         """Close the browser and clean up."""
-        self.browser.quit()
+        try:
+            self.browser.quit()
+            self.logger.info("Browser closed successfully")
+        except Exception as e:
+            self.logger.error(f"Error while closing browser: {str(e)}")
 
     def _load_all_job_cards(self):
         """Scroll through the jobs container to load all available job cards."""
-        print("\nLoading all job cards...")
+        self.logger.info("Loading all job cards...")
         
         # 1) Wait for the scroll sentinel to appear
         scroll_sentinel = self.browser.wait_for_element(
             (By.XPATH, SELECTORS["jobs"]["scroll_sentinel"])
         )
         if not scroll_sentinel:
-            print("❌ Could not find scroll sentinel")
+            self.logger.error("Could not find scroll sentinel")
             return
             
         # 2) Find the container (parent of the sentinel)
         jobs_container = scroll_sentinel.find_element(By.XPATH, "./..")
         if not jobs_container:
-            print("❌ Could not find jobs container")
+            self.logger.error("Could not find jobs container")
             return
             
-        print("Found jobs container, starting to scroll...")
+        self.logger.info("Found jobs container, starting to scroll...")
         
         # 3) Count how many cards are currently in that container
         last_card_count = len(
             jobs_container.find_elements(By.XPATH, SELECTORS["jobs"]["job_cards"])
         )
-        print(f"Initial number of job cards: {last_card_count}")
+        self.logger.info(f"Initial number of job cards: {last_card_count}")
         
-        while True:
+        scroll_attempt = 0
+        max_scroll_attempts = 50  # Prevent infinite scrolling
+        
+        while scroll_attempt < max_scroll_attempts:
+            scroll_attempt += 1
+            
             # 4) Measure viewport height and choose an overlap (20%)
             viewport_height = int(self.driver.execute_script(
                 "return Math.round(arguments[0].clientHeight);", jobs_container
@@ -304,13 +375,12 @@ class LinkedInBot:
                     )
                     if current_count > last_card_count:
                         # More cards keep coming—update last_card_count and keep waiting
-                        print(f"    Intermediate batch: {current_count - last_card_count} more cards (total so far: {current_count})")
                         last_card_count = current_count
                         continue
                     # If we slept 2s and saw no increase, assume batch is done
                     break
 
-                print(f"Loaded batch; total cards now: {last_card_count}")
+                self.logger.info(f"Loaded batch; total cards now: {last_card_count}")
                 continue  # Go to the next scroll iteration
 
             except TimeoutException:
@@ -324,7 +394,7 @@ class LinkedInBot:
 
                 # If scroll + viewport ≥ height − 5px, we're at the bottom
                 if new_scroll + viewport_height >= new_height - 5:
-                    print("No additional cards detected; bottom reached.")
+                    self.logger.info("No additional cards detected; bottom reached.")
                     break
 
                 # Otherwise, we're not at the bottom yet—loop again to scroll further
@@ -334,11 +404,11 @@ class LinkedInBot:
         has_next = self._has_next_page()
         
         if has_next and last_card_count != 25:
-            print(f"⚠️ Warning: Expected 25 cards on a page with next button, but found {last_card_count} cards")
+            self.logger.warning(f"Expected 25 cards on a page with next button, but found {last_card_count} cards")
         elif not has_next:
-            print(f"Last page contains {last_card_count} cards")
+            self.logger.info(f"Last page contains {last_card_count} cards")
         else:
-            print(f"✅ Verified: Found expected 25 cards on page")
+            self.logger.info(f"Verified: Found expected 25 cards on page")
             
         # 10) Scroll back to top for cleanliness
         self.driver.execute_script("arguments[0].scrollTo(0, 0);", jobs_container)
@@ -347,7 +417,7 @@ class LinkedInBot:
         final_cards = len(
             jobs_container.find_elements(By.XPATH, SELECTORS["jobs"]["job_cards"])
         )
-        print(f"Final number of job cards after scrolling: {final_cards}")
+        self.logger.info(f"Final number of job cards after scrolling: {final_cards}")
 
     def _get_job_cards_on_current_page(self):
         """Get all job cards on the current page."""
@@ -362,12 +432,21 @@ class LinkedInBot:
         print(f"Found {len(job_cards)} job cards on current page")
         return job_cards if job_cards else []
 
-    def _has_next_page(self):
+    def _has_next_page(self) -> bool:
         """Check if there is a next page of results."""
-        next_button = self.browser.wait_for_element(
-            (By.XPATH, SELECTORS["jobs"]["next_page_button"])
-        )
-        return bool(next_button and next_button.is_enabled())
+        try:
+            next_button = self.browser.wait_for_element(
+                (By.XPATH, SELECTORS["jobs"]["next_page_button"]),
+                timeout=2  # Short timeout since we expect this to fail at the end
+            )
+            return bool(next_button and next_button.is_enabled())
+        except TimeoutException:
+            # This is expected when we reach the last page
+            self.logger.info("Reached last page of results")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error checking for next page: {str(e)}")
+            return False
 
     def _go_to_next_page(self):
         """Navigate to the next page of results."""
@@ -444,39 +523,59 @@ class LinkedInBot:
             print(f"Error getting total job count: {str(e)}")
             return None
 
-    def process_job_listings(self):
+    def process_job_listings(self) -> bool:
         """Process all job listings and score them in real-time."""
-        job_descriptions = {}
-        scored_jobs = {}
-        total_jobs = self._get_total_job_count()
-        processed_count = 0
-        
-        # Create timestamped filenames
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        jobs_file = f"job_descriptions_{timestamp}.json"
-        scored_file = f"job_descriptions_scored_{timestamp}.json"
-        
-        print(f"\nFound {total_jobs} jobs to process")
-        print(f"Jobs will be saved to: {jobs_file}")
-        print(f"Scores will be saved to: {scored_file}")
-        
-        while True:
-            # Get all job cards on current page
-            job_cards = self._get_job_cards_on_current_page()
+        try:
+            # Initialize tracking variables
+            job_descriptions = {}
+            scored_jobs = {}
+            total_jobs = self._get_total_job_count()
+            processed_count = 0
+            failed_count = 0
             
-            for card in job_cards:
-                try:
-                    # Click the job card to load details
-                    self.browser.ensure_element_in_viewport(card)
-                    card.click()
-                    time.sleep(2)  # Wait for job details to load
-                    
-                    # Extract job information
-                    company_info = self._extract_company_info()
-                    job_info = self._extract_job_url_and_title()
-                    job_description = self._extract_job_description()
-                    
-                    if all([company_info, job_info, job_description]):
+            # Handle case where total jobs count is not available
+            if total_jobs is None or total_jobs == 0:
+                self.logger.warning("Could not determine total number of jobs. Will process all available jobs.")
+                total_jobs = "unknown"
+            
+            # Use the run timestamp for all files
+            jobs_file = f"data/job_descriptions_{self.run_timestamp}.json"
+            scored_file = f"data/job_descriptions_scored_{self.run_timestamp}.json"
+            
+            self.logger.info(f"Starting job processing at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            self.logger.info(f"Total jobs to process: {total_jobs}")
+            self.logger.info(f"Raw jobs will be saved to: {jobs_file}")
+            self.logger.info(f"Scored jobs will be saved to: {scored_file}")
+            
+            # Process jobs page by page
+            page_number = 1
+            while True:
+                self.logger.info(f"Processing page {page_number}...")
+                
+                # Get all job cards on current page
+                job_cards = self._get_job_cards_on_current_page()
+                
+                if not job_cards:
+                    self.logger.info("No job cards found on current page. Ending processing.")
+                    break
+                
+                for card in job_cards:
+                    try:
+                        # Click the job card to load details
+                        self.browser.ensure_element_in_viewport(card)
+                        card.click()
+                        time.sleep(2)  # Wait for job details to load
+                        
+                        # Extract job information
+                        company_info = self._extract_company_info()
+                        job_info = self._extract_job_url_and_title()
+                        job_description = self._extract_job_description()
+                        
+                        if not all([company_info, job_info, job_description]):
+                            self.logger.warning("Skipping job - missing required information")
+                            failed_count += 1
+                            continue
+                        
                         # Generate unique job ID
                         job_id = self._generate_job_id(
                             company_info["name"],
@@ -504,7 +603,7 @@ class LinkedInBot:
                             json.dump(job_descriptions, f, indent=2)
                         
                         # Score the job immediately
-                        print(f"\nScoring job: {job_info['title']} at {company_info['name']}")
+                        self.logger.info(f"Scoring job: {job_info['title']} at {company_info['name']}")
                         match_score = self.job_matcher.get_match_score(job_description)
                         
                         # Create scored job data
@@ -521,24 +620,39 @@ class LinkedInBot:
                         with open(scored_file, 'w') as f:
                             json.dump(scored_jobs, f, indent=2)
                         
-                        print(f"Score: {match_score}/10")
+                        self.logger.info(f"Score: {match_score}/10")
                         
                         processed_count += 1
-                        print(f"\rProcessed {processed_count}/{total_jobs} jobs", end="")
+                        if total_jobs != "unknown":
+                            self.logger.info(f"Processed {processed_count}/{total_jobs} jobs")
+                        else:
+                            self.logger.info(f"Processed {processed_count} jobs")
                     
-                except Exception as e:
-                    print(f"\nError processing job card: {str(e)}")
-                    continue
-            
-            # Check if there's a next page
-            if not self._has_next_page():
-                break
+                    except Exception as e:
+                        self.logger.error(f"Error processing job card: {str(e)}")
+                        failed_count += 1
+                        continue
                 
-            # Go to next page
-            if not self._go_to_next_page():
-                break
-        
-        print(f"\nFinished processing all jobs.")
-        print(f"Raw jobs saved to: {jobs_file}")
-        print(f"Scored jobs saved to: {scored_file}")
-        return job_descriptions, jobs_file 
+                # Check if there's a next page
+                if not self._has_next_page():
+                    break
+                    
+                # Go to next page
+                if not self._go_to_next_page():
+                    self.logger.error("Failed to navigate to next page")
+                    break
+                
+                page_number += 1
+            
+            # Print final statistics
+            self.logger.info(f"\nJob processing completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            self.logger.info(f"Total jobs processed: {processed_count}")
+            self.logger.info(f"Failed jobs: {failed_count}")
+            self.logger.info(f"Raw jobs saved to: {jobs_file}")
+            self.logger.info(f"Scored jobs saved to: {scored_file}")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.exception("Fatal error during job processing")
+            return False 

@@ -20,8 +20,9 @@ build/
 .envrc
 .env.*
 
-# Chrome / WebDrivers (optional)
-browser/c*
+# Data and Log files
+log/
+data/
 
 # macOS
 .DS_Store
