@@ -37,8 +37,7 @@ class JobMatcher:
         resume_text = self._load_resume_text()
         my_needs = self._load_my_needs()
         
-        return f"""You are a job matching expert. Analyze the following resume, job description, and candidate's needs to determine the likelihood of the candidate getting this job.
-
+        return f"""
 Resume:
 {resume_text}
 
@@ -71,7 +70,7 @@ Respond ONLY with a JSON object containing a single key "match_score" with a num
             model="gpt-4o",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "You are a job matching expert that provides match scores in JSON format."},
+                {"role": "system", "content": "You are a job matching expert. Analyze the following resume, job description, and candidate's needs to determine the likelihood of the candidate getting this job."},
                 {"role": "user", "content": prompt}
             ]
         )
