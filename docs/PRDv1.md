@@ -4,6 +4,10 @@ Project Name: LinkedIn Job Automation Bot
 Owner: [Your Name]
 Date: [Today’s Date]
 Version: 1.0
+⸻
+
+🛑 Status: Superseded
+This PRD is no longer the active specification. Certain assumptions (e.g., use of People tab on company's LinkedIn page for outreach) were found to be invalid or suboptimal. This PRD contains outdated and in some cases inaccurate information. It reflects early-stage thinking and does not represent the actual implementation. For updated design logic, see PRD v1.1.
 
 ⸻
 
@@ -19,11 +23,11 @@ This is a personal-use Python automation project that interacts with LinkedIn to
 	•	Reach out to relevant employees at target companies with custom messages.
 	•	Track the outreach history for future reference.
 	•	Learn and apply:
-	•	Basic architecture/design principles
-	•	Selenium-based browser automation
-	•	OpenAI API integration
-	•	Modular project structure
-	•	GitHub project tracking and versioning
+		•	Basic architecture/design principles
+		•	Selenium-based browser automation
+		•	OpenAI API integration
+		•	Modular project structure
+		•	GitHub project tracking and versioncing
 
 ⸻
 
@@ -87,8 +91,6 @@ Focus on robust minimalism	Avoid premature optimization; optimize for learning
 
 🧱 7. Project Structure
 
-linkedin-automation-bot/
-│
 ├── browser/				  # where chrome for testing lives
 │   ├── chrome-headless-shell-mac-arm64
 │   ├── chrome-headless-shell-mac-arm64.zip
@@ -96,18 +98,18 @@ linkedin-automation-bot/
 │   ├── chrome-mac-arm64.zip
 │   ├── chromedriver-mac-arm64
 │   └── chromedriver-mac-arm64.zip
-│
-├── config/
-│   └── settings.json         # Filters, universities, messages, etc.
-│
-├── linkedin/
-│   └── bot.py                # Core Selenium logic
-│
-├── main.py                   # Project entry point
-├── requirements.txt
-├── README.md
-├── .env                      # Secrets (LinkedIn login, API keys)
-└── .gitignore                # To be added
+├── linkedin-referral-bot/
+	├── config/
+	│   └── settings.json         # Filters, universities, messages, etc.
+	│
+	├── linkedin/
+	│   └── bot.py                # Core Selenium logic
+	│
+	├── main.py                   # Project entry point
+	├── requirements.txt
+	├── README.md
+	├── .env                      # Secrets (LinkedIn login, API keys)
+	└── .gitignore                # To be added
 
 
 ⸻

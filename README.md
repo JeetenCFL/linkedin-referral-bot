@@ -1,28 +1,22 @@
 # LinkedIn Referral Automation Bot 🤖
 
-This is a personal-use project built in Python to automate LinkedIn job search and outreach. The bot performs browser automation using Selenium, filters job listings using AI (OpenAI API), and navigates through LinkedIn to identify relevant people at target companies for referral requests.
+This is a personal-use project built in Python to automate LinkedIn job search and outreach. The bot performs browser automation using Selenium, filters job listings using AI (OpenAI API), and navigates through LinkedIn to identify relevant people at target companies for referral requests for filtered jobs.
 
 ---
 
 ## 📌 Project Goals
 
 - Automate the job search and filtering process
-- Identify potential referrers from target companies
+- Identify potential referrers from target companies and jobs
 - Use AI to semantically filter jobs
 - Log outreach attempts in a Google Sheet
 - Modular, configurable, and well-documented codebase
-- Learn and apply GitHub workflows
 
 ---
 
 ## 🛠️ Current Status
 
-Right now, this repo contains the base setup for running a headful Chrome session using Selenium.
-
-### ✅ Verified:
-- Chrome for Testing binary is used
-- Custom ChromeDriver is specified
-- Selenium launches the browser and opens a test page (`https://www.google.com`)
+This repository currently contains the base code that navigates to the LinkedIn Jobs page, applies the specified filters and features from the settings.json file, matches each filtered job description with the resume located in the config folder, generates a relevance score, and saves all results in a JSON file.
 
 ---
 
@@ -59,7 +53,7 @@ Download the appropriate version and matching ChromeDriver for your platform fro
 Extract and place it inside:
 
 ```
-./browser/
+../browser/
 ```
 You could check out the PRDv1 file in docs for exact structure that is assumed.
 ---
@@ -95,17 +89,17 @@ driver.quit()
 ## 📂 Project Structure (WIP)
 
 ```
-LINKEDIN_REFERRAL_AUTOMATION/
-├── browser/                      # Chrome & ChromeDriver
-├── config/                       # Dynamic config (filters, prompts)
-├── docs/                         # Documentation (e.g. PRD.md)
-│   └── PRDv1.md
-├── linkedin/                     # Automation code
-├── main.py                       # Project entry point
-├── test_component.ipynb          # For quick testing of features
-├── requirements.txt
-├── .env                          # Secrets (not committed)
-└── README.md
+browser/                      # Chrome & ChromeDriver
+    ├── linkedin-referral-bot/
+        ├── config/                       # Dynamic config (filters, prompts)
+        ├── docs/                         # Documentation (e.g. PRD.md)
+        │   └── PRDv1.md
+        ├── linkedin/                     # Automation code
+        ├── main.py                       # Project entry point
+        ├── test_component.ipynb          # For quick testing of features
+        ├── requirements.txt
+        ├── .env                          # Secrets (not committed)
+        └── README.md
 ```
 
 ---
@@ -124,8 +118,6 @@ OPENAI_API_KEY=your_openai_key
 
 ## 📈 Coming Soon
 
-- LinkedIn login + job search
-- AI-powered job description filter
 - Company → People page traversal
 - Personalized message delivery
 - Google Sheet logging

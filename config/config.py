@@ -7,7 +7,7 @@ load_dotenv()
 
 # Base paths
 BASE_DIR = Path(__file__).parent.parent
-BROWSER_DIR = BASE_DIR / "browser"
+BROWSER_DIR = BASE_DIR.parent / "browser"
 
 # Browser paths
 CHROME_BINARY_PATH = str(BROWSER_DIR / "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing")
