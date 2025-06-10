@@ -176,7 +176,6 @@ class LinkedInBot:
 
         self.browser.ensure_element_in_viewport(apply_button)
         apply_button.click()
-        time.sleep(2)  # Wait for results to update
         print("[Date Filter] ✅ Filter applied")
         return True
 
@@ -211,10 +210,10 @@ class LinkedInBot:
                 (By.XPATH, SELECTORS["jobs"]["location_input"])
             )
             if location_input and location_to_use:
+                # Add a small delay to allow default suggestions to appear
+                time.sleep(1)
                 location_input.clear()
                 location_input.send_keys(location_to_use)
-                # Add a small delay to allow suggestions to appear
-                time.sleep(1)
                 location_input.send_keys(Keys.RETURN)
             
             # Apply date filter if specified in settings
@@ -315,7 +314,7 @@ class LinkedInBot:
                 continue  # Go to the next scroll iteration
 
             except TimeoutException:
-                # 8) If no card appeared in 3 s, check if we're truly at the bottom
+                # 8) If no card appeared in 2 s, check if we're truly at the bottom
                 new_scroll = int(self.driver.execute_script(
                     "return Math.round(arguments[0].scrollTop);", jobs_container
                 ))
@@ -386,7 +385,7 @@ class LinkedInBot:
         """Extract company name and LinkedIn URL from the job details."""
         try:
             company_div = self.browser.wait_for_element(
-                (By.XPATH, "//div[contains(@class, 'job-details-jobs-unified-top-card__company-name')]//a")
+                (By.XPATH, SELECTORS["jobs"]["company_name"])
             )
             if company_div:
                 company_name = company_div.text.strip()
@@ -400,7 +399,7 @@ class LinkedInBot:
         """Extract job title and LinkedIn URL from the job details."""
         try:
             job_title_div = self.browser.wait_for_element(
-                (By.XPATH, "//div[contains(@class, 'job-details-jobs-unified-top-card__job-title')]//a")
+                (By.XPATH, SELECTORS["jobs"]["job_title"])
             )
             if job_title_div:
                 job_title = job_title_div.text.strip()
@@ -431,7 +430,7 @@ class LinkedInBot:
         """Get the total number of jobs from the results subtitle."""
         try:
             subtitle = self.browser.wait_for_element(
-                (By.XPATH, "//div[contains(@class, 'jobs-search-results-list__subtitle')]//span")
+                (By.XPATH, SELECTORS["jobs"]["results_count"])
             )
             if subtitle:
                 # Extract number from text like "1,229 results"

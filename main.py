@@ -13,16 +13,13 @@ def main():
         print("Attempting to log in to LinkedIn...")
         if bot.login():
             print("Successfully logged in!")
-            
-            # Wait a bit for the page to stabilize
-            time.sleep(3)
-            
+         
             # Search for jobs using settings from Settings.json
             print("Searching for jobs using settings...")
             if bot.search_jobs():
                 print("Successfully found job listings!")
                 
-                # Process all job listings (now includes real-time scoring)
+                # Process all job listings (includes real-time scoring)
                 print("\nStarting to process job listings...")
                 job_descriptions, jobs_file = bot.process_job_listings()
                 
