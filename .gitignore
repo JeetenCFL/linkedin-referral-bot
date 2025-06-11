@@ -21,7 +21,7 @@ build/
 .env.*
 
 # Data and Log files
-log/
+logs/
 data/
 
 # macOS
