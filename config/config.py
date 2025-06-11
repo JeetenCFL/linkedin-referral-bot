@@ -2,12 +2,21 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
-
 # Base paths
 BASE_DIR = Path(__file__).parent.parent
 BROWSER_DIR = BASE_DIR.parent / "browser"
+
+# Load environment variables
+env_path = BASE_DIR / '.env'
+if not env_path.exists():
+    raise FileNotFoundError(
+        f".env file not found at {env_path}. Please create a .env file with the following variables:\n"
+        "LINKEDIN_EMAIL=your_email@example.com\n"
+        "LINKEDIN_PASSWORD=your_password\n"
+        "OPENAI_API_KEY=you_openai_api\n"
+    )
+
+load_dotenv(env_path)
 
 # Browser paths
 CHROME_BINARY_PATH = str(BROWSER_DIR / "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing")
@@ -17,9 +26,17 @@ CHROMEDRIVER_PATH = str(BROWSER_DIR / "chromedriver-mac-arm64/chromedriver")
 LINKEDIN_EMAIL = os.getenv("LINKEDIN_EMAIL")
 LINKEDIN_PASSWORD = os.getenv("LINKEDIN_PASSWORD")
 
+if not LINKEDIN_EMAIL or not LINKEDIN_PASSWORD:
+    raise ValueError(
+        "LinkedIn credentials not found in .env file. Please ensure the following variables are set:\n"
+        "LINKEDIN_EMAIL=your_email@example.com\n"
+        "LINKEDIN_PASSWORD=your_password"
+    )
+
 # URLs
 LINKEDIN_LOGIN_URL = "https://www.linkedin.com/login"
 LINKEDIN_JOBS_URL = "https://www.linkedin.com/jobs/"
+LINKEDIN_SEARCH_URL = "https://www.linkedin.com/search/results/people/"
 
 # Timeouts (in seconds)
 DEFAULT_TIMEOUT = 10
@@ -56,5 +73,21 @@ SELECTORS = {
         "company_name": "//div[contains(@class, 'job-details-jobs-unified-top-card__company-name')]//a",  # XPath for company name link
         "job_title": "//div[contains(@class, 'job-details-jobs-unified-top-card__job-title')]//a",  # XPath for job title link
         "results_count": "//div[contains(@class, 'jobs-search-results-list__subtitle')]//span"  # XPath for total results count
+    },
+    "search": {
+        # People Search Elements
+        "keyword_input": "//input[contains(@class, 'search-global-typeahead__input')]",  # XPath for keyword search input
+        "company_filter_button": "//button[@id='searchFilter_currentCompany']",  # XPath for company filter button
+        "company_input": "//input[@aria-label='Add a company']",  # XPath for company input field
+        "company_suggestion": "//div[@role='listbox']//div[contains(@class, 'basic-typeahead__selectable')][1]",  # XPath for first company suggestion
+        "apply_company_filter": '//fieldset[.//button[@aria-label="Cancel Current company filter"]]//button[span[normalize-space(.)="Show results"]]',  # XPath for apply company filter button
+        "people_results": "//ul[contains(@class, 'reusable-search__result-list')]"  # XPath for people search results list
+    },
+    "profile": {
+        # Profile Interaction Elements
+        "connect_button": "//button[contains(@class, 'artdeco-button') and contains(., 'Connect')]",  # XPath for connect button
+        "add_note_button": "//button[contains(@class, 'artdeco-button') and contains(., 'Add a note')]",  # XPath for add note button
+        "message_input": "//textarea[contains(@aria-label, 'Add a note')]",  # XPath for message input field
+        "send_button": "//button[contains(@class, 'artdeco-button--primary') and contains(., 'Send')]"  # XPath for send button
     }
 } 
