@@ -85,9 +85,9 @@ SELECTORS = {
     },
     "profile": {
         # Profile Interaction Elements
-        "connect_button": "//button[contains(@class, 'artdeco-button') and contains(., 'Connect')]",  # XPath for connect button
-        "add_note_button": "//button[contains(@class, 'artdeco-button') and contains(., 'Add a note')]",  # XPath for add note button
-        "message_input": "//textarea[contains(@aria-label, 'Add a note')]",  # XPath for message input field
-        "send_button": "//button[contains(@class, 'artdeco-button--primary') and contains(., 'Send')]"  # XPath for send button
+        "connect_button": "//button[span[text()='Connect'] and @aria-label[contains(., 'Invite')]]",  # XPath for connect button
+        "add_note_button": "//button[@aria-label='Add a note' and contains(@class, 'artdeco-button')]",  # XPath for add note button
+        "message_input": "//textarea[@id='custom-message' and @placeholder='Ex: We know each other from…']",  # XPath for message input field
+        "send_button": "//div[contains(@class, 'artdeco-modal__actionbar')]//button[span[text()='Send'] and following-sibling::button[span[text()='Cancel']] or preceding-sibling::button[span[text()='Cancel']]]"  # XPath for send button
     }
 } 

@@ -78,7 +78,7 @@ class OutreachManager:
                 return False
 
             # First navigate to LinkedIn domain
-            self.driver.get("https://www.linkedin.com")
+            self.driver.get("https://www.linkedin.com/feed")
             time.sleep(2)
 
             # Add cookies
@@ -188,28 +188,102 @@ class OutreachManager:
     def _get_search_results(self) -> List[Dict[str, str]]:
         """Get the list of people from search results."""
         try:
-            # Wait for results to load
-            results = self.browser.wait_for_element(
-                (By.XPATH, SELECTORS["search"]["people_results"])
+            # Wait for results container to load
+            results_container = self.browser.wait_for_element(
+                (By.XPATH, "//div[@class='search-results-container']")
             )
-            if not results:
+            if not results_container:
+                self.logger.error("Results container not found")
                 return []
+
+            self.logger.info("Found results container, starting to scroll...")
+            
+            # Initialize tracking variables
+            last_person_count = 0
+            scroll_attempt = 0
+            max_scroll_attempts = 50  # Prevent infinite scrolling
+            
+            while scroll_attempt < max_scroll_attempts:
+                scroll_attempt += 1
+                
+                # Measure viewport height and choose an overlap (20%)
+                viewport_height = int(self.driver.execute_script(
+                    "return Math.round(arguments[0].clientHeight);", results_container
+                ))
+                overlap = int(viewport_height * 0.20)
+                scroll_amount = viewport_height - overlap
+
+                # Find current scroll and container height
+                current_scroll = int(self.driver.execute_script(
+                    "return Math.round(arguments[0].scrollTop);", results_container
+                ))
+                container_height = int(self.driver.execute_script(
+                    "return Math.round(arguments[0].scrollHeight);", results_container
+                ))
+
+                # Compute next scroll target (don't exceed bottom)
+                target_scroll = min(current_scroll + scroll_amount, container_height)
+                self.driver.execute_script(
+                    "arguments[0].scrollTo(0, arguments[1]);", 
+                    results_container, target_scroll
+                )
+
+                # Wait for new content to load
+                time.sleep(2)  # Wait for initial load
+                
+                # Count current people
+                current_people = results_container.find_elements(
+                    By.XPATH, ".//a[.//img[contains(@class, 'EntityPhoto-circle')]]"
+                )
+                current_count = len(current_people)
+                
+                if current_count > last_person_count:
+                    self.logger.info(f"Loaded batch; total people now: {current_count}")
+                    last_person_count = current_count
+                    continue
+                
+                # Check if we've reached the bottom
+                new_scroll = int(self.driver.execute_script(
+                    "return Math.round(arguments[0].scrollTop);", results_container
+                ))
+                new_height = int(self.driver.execute_script(
+                    "return Math.round(arguments[0].scrollHeight);", results_container
+                ))
+
+                # If scroll + viewport ≥ height − 5px, we're at the bottom
+                if new_scroll + viewport_height >= new_height - 5:
+                    self.logger.info("No additional people detected; bottom reached.")
+                    break
 
             # Extract people information
             people = []
-            result_elements = results.find_elements(By.XPATH, ".//li")
+            person_elements = results_container.find_elements(
+                By.XPATH, ".//a[.//img[contains(@class, 'EntityPhoto-circle')]]"
+            )
             
-            for element in result_elements:
+            for element in person_elements:
                 try:
-                    name = element.find_element(By.XPATH, ".//span[@aria-hidden='true']").text
-                    profile_url = element.find_element(By.XPATH, ".//a[contains(@href, '/in/')]").get_attribute('href')
-                    people.append({
-                        'name': name,
-                        'profile_url': profile_url
-                    })
+                    # Get profile URL
+                    profile_url = element.get_attribute("href")
+                    if not profile_url:
+                        continue
+                        
+                    # Get name using the profile URL
+                    name_xpath = f"//a[@href='{profile_url}']/span/span"
+                    name_element = self.driver.find_element(By.XPATH, name_xpath)
+                    if name_element:
+                        name = name_element.text.strip()
+                        people.append({
+                            'name': name,
+                            'profile_url': profile_url
+                        })
                 except NoSuchElementException:
                     continue
+                except Exception as e:
+                    self.logger.warning(f"Error extracting person info: {str(e)}")
+                    continue
 
+            self.logger.info(f"Found {len(people)} people in search results")
             return people
 
         except Exception as e:
@@ -225,7 +299,7 @@ class OutreachManager:
 
             # Click connect button
             connect_button = self.browser.wait_for_clickable(
-                (By.XPATH, SELECTORS["profile"]["connect_button"])
+                (By.XPATH, f"//button[contains(@aria-label, 'Invite {person['name']} to connect')]")
             )
             if not connect_button:
                 self.logger.error("Connect button not found")
@@ -299,6 +373,7 @@ class OutreachManager:
 
             # Send connection requests
             for person in people:
+                print("person:", person)
                 if self._send_connection_request(person, job_data):
                     self.logger.info(f"Successfully sent connection request to {person['name']}")
                 else:

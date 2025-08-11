@@ -4,9 +4,7 @@ from config.config import LINKEDIN_EMAIL, LINKEDIN_PASSWORD
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 from dotenv import load_dotenv, find_dotenv
-from pathlib import Path
 import os
-import time
 
 # Load environment variables
 env_file = find_dotenv()
