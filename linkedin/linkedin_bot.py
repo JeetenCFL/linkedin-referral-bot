@@ -47,12 +47,12 @@ class LinkedInBot:
         os.makedirs('data', exist_ok=True)
 
     def _load_settings(self) -> Dict[str, Any]:
-        """Load settings from Settings.json file."""
+        """Load settings from config/settings.json file (canonical)."""
         try:
-            with open('config/Settings.json', 'r') as f:
+            with open('config/settings.json', 'r') as f:
                 return json.load(f)
         except FileNotFoundError:
-            self.logger.warning("Settings.json not found. Using default settings.")
+            self.logger.warning("config/settings.json not found. Using default settings.")
             return {
                 "job_keywords": [],
                 "locations": [],
@@ -61,8 +61,8 @@ class LinkedInBot:
                 "my_needs": ""
             }
         except json.JSONDecodeError as e:
-            self.logger.error(f"Error parsing Settings.json: {str(e)}")
-            raise LinkedInBotError("Invalid Settings.json format")
+            self.logger.error(f"Error parsing settings.json: {str(e)}")
+            raise LinkedInBotError("Invalid settings.json format")
 
     def _format_search_query(self, keywords):
         """Format keywords with AND operator for LinkedIn search."""
@@ -83,6 +83,21 @@ class LinkedInBot:
     def login(self) -> bool:
         """Log in to LinkedIn."""
         try:
+            # Check if already authenticated using persistent Chrome profile
+            try:
+                self.driver.get("https://www.linkedin.com/feed/")
+                # If login form appears, we are not authenticated
+                login_form_email = self.browser.wait_for_element(
+                    (By.ID, SELECTORS["login"]["email_field"]),
+                    timeout=3
+                )
+                if not login_form_email:
+                    self.logger.info("Existing authenticated session detected; skipping login")
+                    return True
+            except Exception:
+                # Fall back to normal login
+                pass
+
             # Navigate to login page
             self.driver.get(LINKEDIN_LOGIN_URL)
             

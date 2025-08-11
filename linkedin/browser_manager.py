@@ -5,6 +5,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from config.config import CHROME_BINARY_PATH, CHROMEDRIVER_PATH, DEFAULT_TIMEOUT
+import os
 import time
 
 class BrowserManager:
@@ -18,6 +19,13 @@ class BrowserManager:
         options.binary_location = CHROME_BINARY_PATH
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        
+        # Persist user data to keep session/cookies (isolated profile under data/)
+        user_data_dir = os.path.abspath(os.path.join("data", "chrome-profile"))
+        os.makedirs(user_data_dir, exist_ok=True)
+        options.add_argument(f"--user-data-dir={user_data_dir}")
+        # Ensure a stable profile subdirectory inside the user data dir
+        options.add_argument("--profile-directory=Default")
         
         # Prevent Chrome from pausing JS timers or throttling-
         # invisible‐page rendering when window is hidden/minimized.
