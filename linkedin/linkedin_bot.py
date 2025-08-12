@@ -172,43 +172,43 @@ class LinkedInBot:
             return True
 
         except TimeoutException as e:
-            print(f"Timeout while applying date filter: {str(e)}")
+            self.logger.warning(f"Timeout while applying date filter: {str(e)}")
             return False
         except Exception as e:
-            print(f"Failed to apply date filter: {str(e)}")
+            self.logger.error(f"Failed to apply date filter: {str(e)}")
             return False
 
     def _open_date_filter_dropdown(self):
         """Open the date filter dropdown menu."""
-        print("\n[Date Filter] Opening dropdown...")
+        self.logger.info("[Date Filter] Opening dropdown...")
         date_filter_button = self.browser.wait_for_clickable(
             (By.XPATH, SELECTORS["jobs"]["date_posted_button"])
         )
         
         if not date_filter_button:
-            print("[Date Filter] ❌ Date filter button not found")
+            self.logger.error("[Date Filter] ❌ Date filter button not found")
             return False
 
         self.browser.ensure_element_in_viewport(date_filter_button)
         date_filter_button.click()
         time.sleep(1)  # Wait for dropdown animation
-        print("[Date Filter] ✅ Dropdown opened")
+        self.logger.info("[Date Filter] ✅ Dropdown opened")
         return True
 
     def _select_date_filter_option(self):
         """Select the date filter option from the dropdown."""
         date_filter = self.settings.get("date_posted_filter", "any_time")
-        print(f"\n[Date Filter] Selecting option: {date_filter}")
+        self.logger.info(f"[Date Filter] Selecting option: {date_filter}")
         
         # Find the radio input
         option_xpath = SELECTORS["jobs"]["date_posted_options"].get(date_filter)
         if not option_xpath:
-            print(f"[Date Filter] ❌ Invalid date filter option: {date_filter}")
+            self.logger.error(f"[Date Filter] ❌ Invalid date filter option: {date_filter}")
             return False
 
         radio_input = self.browser.wait_for_element((By.XPATH, option_xpath))
         if not radio_input:
-            print(f"[Date Filter] ❌ Radio input not found for {date_filter}")
+            self.logger.error(f"[Date Filter] ❌ Radio input not found for {date_filter}")
             return False
 
         # Get the associated label and click it
@@ -217,29 +217,29 @@ class LinkedInBot:
         label = self.browser.wait_for_clickable((By.XPATH, label_xpath))
         
         if not label:
-            print(f"[Date Filter] ❌ Label not found for radio input {radio_id}")
+            self.logger.error(f"[Date Filter] ❌ Label not found for radio input {radio_id}")
             return False
 
         self.browser.ensure_element_in_viewport(label)
         label.click()
         time.sleep(1)  # Wait for selection to register
-        print(f"[Date Filter] ✅ Selected {date_filter}")
+        self.logger.info(f"[Date Filter] ✅ Selected {date_filter}")
         return True
 
     def _click_apply_filter_button(self):
         """Click the apply filter button to update results."""
-        print("\n[Date Filter] Applying filter...")
+        self.logger.info("[Date Filter] Applying filter...")
         apply_button = self.browser.wait_for_clickable(
             (By.XPATH, SELECTORS["jobs"]["apply_filter_button"])
         )
         
         if not apply_button:
-            print("[Date Filter] ❌ Apply button not found")
+            self.logger.error("[Date Filter] ❌ Apply button not found")
             return False
 
         self.browser.ensure_element_in_viewport(apply_button)
         apply_button.click()
-        print("[Date Filter] ✅ Filter applied")
+        self.logger.info("[Date Filter] ✅ Filter applied")
         return True
 
     def search_jobs(self, job_title: Optional[str] = None, location: Optional[str] = None) -> bool:
@@ -444,7 +444,7 @@ class LinkedInBot:
             By.XPATH, SELECTORS["jobs"]["job_cards"]
         )
         
-        print(f"Found {len(job_cards)} job cards on current page")
+        self.logger.info(f"Found {len(job_cards)} job cards on current page")
         return job_cards if job_cards else []
 
     def _has_next_page(self) -> bool:
@@ -531,11 +531,11 @@ class LinkedInBot:
                 count_text = subtitle.text.strip()
                 count_str = count_text.split()[0].replace(',', '')
                 count = int(count_str)
-                print(f"Total jobs available: {count}")
+                self.logger.info(f"Total jobs available: {count}")
                 return count
             return None
         except Exception as e:
-            print(f"Error getting total job count: {str(e)}")
+            self.logger.error(f"Error getting total job count: {str(e)}")
             return None
 
     def process_job_listings(self) -> bool:
@@ -619,12 +619,17 @@ class LinkedInBot:
                         
                         # Score the job immediately
                         self.logger.info(f"Scoring job: {job_info['title']} at {company_info['name']}")
-                        match_score = self.job_matcher.get_match_score(job_description)
-                        
-                        # Create scored job data
+                        start_api = time.perf_counter()
+                        scores = self.job_matcher.get_scores(job_description)
+                        api_latency_ms = int((time.perf_counter() - start_api) * 1000)
+                        match_score = scores.get('match_score', 0)
+                        ats_pick_likelihood = scores.get('ats_pick_likelihood', 0)
+
+                        # Create scored job data with both scores
                         scored_job = {
                             **job_data,
                             'match_score': match_score,
+                            'ats_pick_likelihood': ats_pick_likelihood,
                             'scored_at': datetime.now().isoformat()
                         }
                         
@@ -635,7 +640,9 @@ class LinkedInBot:
                         with open(scored_file, 'w') as f:
                             json.dump(scored_jobs, f, indent=2)
                         
-                        self.logger.info(f"Score: {match_score}/10")
+                        self.logger.info(
+                            f"Scores — job_id={job_id} match: {match_score}/100, ats: {ats_pick_likelihood}/100 (latency: {api_latency_ms} ms)"
+                        )
                         
                         processed_count += 1
                         if total_jobs != "unknown":

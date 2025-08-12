@@ -24,42 +24,41 @@ class LogManager:
         return self._timestamp
 
     def _setup_logging(self):
-        """Configure logging for the entire application"""
-        # Create logs directory
+        """Minimal logging: same format and level to console and file."""
         os.makedirs('logs', exist_ok=True)
 
-        # Get the root logger
-        root_logger = logging.getLogger()
-        root_logger.setLevel(logging.INFO)  # Changed from DEBUG to INFO
+        # Single level, optional via env; default INFO
+        level_name = os.getenv('LOG_LEVEL', 'INFO').upper()
+        level = getattr(logging, level_name, logging.INFO)
 
-        # Remove any existing handlers
+        root_logger = logging.getLogger()
+        root_logger.setLevel(level)
+
+        # Remove any existing handlers (idempotent re-init)
         for handler in root_logger.handlers[:]:
             root_logger.removeHandler(handler)
 
-        # Create formatters
-        detailed_formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
-        )
-        console_formatter = logging.Formatter(
-            '%(levelname)s - %(message)s'
+        # One formatter for both outputs
+        formatter = logging.Formatter(
+            '%(asctime)s - %(levelname)s - %(name)s - [%(filename)s:%(lineno)d] - %(message)s'
         )
 
-        # Create file handler for all logs
+        # File handler
         file_handler = logging.FileHandler(f'logs/linkedin_bot_{self._timestamp}.log')
-        file_handler.setLevel(logging.INFO)  # Changed from DEBUG to INFO
-        file_handler.setFormatter(detailed_formatter)
+        file_handler.setLevel(level)
+        file_handler.setFormatter(formatter)
 
-        # Create console handler
+        # Console handler
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-        console_handler.setFormatter(console_formatter)
+        console_handler.setLevel(level)
+        console_handler.setFormatter(formatter)
 
-        # Add handlers to root logger
         root_logger.addHandler(file_handler)
         root_logger.addHandler(console_handler)
 
-        # Log the start of a new session
-        root_logger.info(f"=== New Session Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===")
+        root_logger.info(
+            f"=== New Session Started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ==="
+        )
 
     @staticmethod
     def get_logger(name: Optional[str] = None) -> logging.Logger:

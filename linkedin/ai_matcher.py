@@ -4,6 +4,14 @@ import pdfplumber
 from openai import OpenAI
 from dotenv import load_dotenv
 
+
+# System prompt for the scoring model
+SYSTEM_PROMPT = (
+    "You are an expert AI/ML hiring screener. Your task is to read a candidate's "
+    "resume and a job description, follow the evaluation steps exactly, and output "
+    "only the requested JSON object with two scores."
+)
+
 class JobMatcher:
     def __init__(self):
         load_dotenv()
@@ -33,10 +41,9 @@ class JobMatcher:
         return self._my_needs
     
     def create_matching_prompt(self, job_description):
-        """Create the prompt for job matching."""
+        """Create the user message content for job scoring using the new template."""
         resume_text = self._load_resume_text()
-        my_needs = self._load_my_needs()
-        
+
         return f"""
 Resume:
 {resume_text}
@@ -44,37 +51,85 @@ Resume:
 Job Description:
 {job_description}
 
-What I'm Looking For:
-{my_needs}
+Candidate facts:
+- 2 years professional ML experience
+- Specialization: AI/ML with emphasis on NLP
+- Relevant focus areas: LLM fine-tuning, Retrieval-Augmented Generation (RAG) pipelines, retrieval systems, embeddings, transformers, classical machine learning
 
-Based on the above information, provide a match score from 0-10 where:
-- 0 means extremely unlikely to get the job (major mismatches in requirements, experience, or qualifications)
-- 10 means extremely likely to get the job (perfect match in skills, experience, and qualifications)
+Scoring definitions:
+1) match_score (0-100) = likelihood a human recruiter or hiring manager would advance this candidate.
+   - Any integer from 0 to 100 is allowed.
+   - Anchor points:
+     0 = no realistic chance
+     25 = weak alignment, several core gaps
+     50 = some alignment but notable gaps
+     75 = strong alignment, minor gaps
+     100 = perfect match on core needs
+   - Prioritize core NLP/LLM/RAG/retrieval requirements.
+   - Deduct if the role’s primary focus is not in NLP or related AI/ML work, even if tools overlap.
+   - Years-of-experience rule:
+     * If required years ≤ 4 → no penalty.
+     * If required = 5 → apply small deduction (max score ~90 if perfect otherwise).
+     * If required = 6 → apply moderate deduction (max score ~70).
+     * If required = 7 → apply heavy deduction (max score ~40–50).
+     * If required ≥ 8 → match_score = 0 regardless of other factors.
+     * If required years are not stated → do not apply penalty.
 
-Consider factors like:
-- Required skills match with your experience
-- Years of experience match with requirements
-- Education and qualifications alignment
-- Industry experience relevance
-- Location and work arrangement preferences
-- Overall fit with company culture and role expectations
+2) ats_pick_likelihood (0-100) = probability an ATS or keyword filter passes the resume.
+   - Any integer from 0 to 100 is allowed.
+   - Anchor points:
+     0 = almost no keyword overlap
+     50 = some relevant keywords present but key ones missing
+     100 = all core keywords and phrases present
+   - Base only on keyword/phrase overlap: required skills, technologies, and titles.
+   - Strong matches include NLP, LLM fine-tuning, transformers, embeddings, vector search, retrieval, RAG, evaluation, classical ML.
+   - Ignore years-of-experience for ATS scoring unless the resume explicitly lists a number of years and the JD’s “must have X years” requirement is higher.
 
-Respond ONLY with a JSON object containing a single key "match_score" with a number between 0 and 10."""
+Evaluation steps (do internally, do not output):
+1) Extract JD core responsibilities, required skills, preferred skills, and years of experience.
+2) Score match_score using the above rules, adjusting for domain centrality and years-of-experience curve.
+3) Score ats_pick_likelihood using keyword overlap only.
+4) Keep the two scores independent.
+5) Output final JSON.
 
-    def get_match_score(self, job_description):
-        """Get match score for a job description."""
-        # Create and send prompt
+Output format:
+{{
+  "match_score": 0-100,
+  "ats_pick_likelihood": 0-100
+}}
+"""
+
+    def get_scores(self, job_description):
+        """Get both match_score and ats_pick_likelihood for a job description (0-100 scale)."""
+        from time import perf_counter
+        from config.logging_config import log_manager
+        logger = log_manager.get_logger(__name__)
+
         prompt = self.create_matching_prompt(job_description)
-        
+
+        start_time = perf_counter()
         response = self.client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5",
             response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": "You are a job matching expert. Analyze the following resume, job description, and candidate's needs to determine the likelihood of the candidate getting this job."},
+                {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": prompt}
             ]
         )
-        
-        # Parse and return the match score
+        latency_ms = int((perf_counter() - start_time) * 1000)
+
         result = json.loads(response.choices[0].message.content)
-        return result.get('match_score', 0) 
+        match_score = result.get("match_score", 0)
+        ats_pick_likelihood = result.get("ats_pick_likelihood", 0)
+
+        logger.info(f"LLM scoring latency: {latency_ms} ms")
+
+        return {
+            "match_score": match_score,
+            "ats_pick_likelihood": ats_pick_likelihood,
+        }
+
+    def get_match_score(self, job_description):
+        """Backward-compatible helper: returns only match_score (0-100)."""
+        scores = self.get_scores(job_description)
+        return scores.get("match_score", 0)

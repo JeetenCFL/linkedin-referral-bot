@@ -5,6 +5,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 from config.config import CHROME_BINARY_PATH, CHROMEDRIVER_PATH, DEFAULT_TIMEOUT
+from config.logging_config import log_manager
 import os
 import time
 
@@ -12,6 +13,7 @@ class BrowserManager:
     def __init__(self):
         self.driver = None
         self.wait = None
+        self.logger = log_manager.get_logger(__name__)
 
     def initialize_browser(self):
         """Initialize the Chrome browser with custom options."""
@@ -55,10 +57,10 @@ class BrowserManager:
             )
             return element
         except TimeoutException:
-            print(f"Timeout waiting for element: {locator}")
+            self.logger.warning(f"Timeout waiting for element: {locator}")
             return None
         except Exception as e:
-            print(f"Unexpected error while waiting for element {locator}: {str(e)}")
+            self.logger.error(f"Unexpected error while waiting for element {locator}: {str(e)}")
             return None
 
     def wait_for_visible(self, locator, timeout=DEFAULT_TIMEOUT):
@@ -69,10 +71,10 @@ class BrowserManager:
             )
             return element
         except TimeoutException:
-            print(f"Timeout waiting for visible element: {locator}")
+            self.logger.warning(f"Timeout waiting for visible element: {locator}")
             return None
         except Exception as e:
-            print(f"Unexpected error while waiting for visible element {locator}: {str(e)}")
+            self.logger.error(f"Unexpected error while waiting for visible element {locator}: {str(e)}")
             return None
 
     def wait_for_clickable(self, locator, timeout=DEFAULT_TIMEOUT):
@@ -83,10 +85,10 @@ class BrowserManager:
             )
             return element
         except TimeoutException:
-            print(f"Timeout waiting for clickable element: {locator}")
+            self.logger.warning(f"Timeout waiting for clickable element: {locator}")
             return None
         except Exception as e:
-            print(f"Unexpected error while waiting for clickable element {locator}: {str(e)}")
+            self.logger.error(f"Unexpected error while waiting for clickable element {locator}: {str(e)}")
             return None
 
     def ensure_element_in_viewport(self, element):
@@ -109,7 +111,7 @@ class BrowserManager:
                 self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
                 time.sleep(0.5)  # Short wait for scroll to complete
         except Exception as e:
-            print(f"Error ensuring element in viewport: {str(e)}")
+            self.logger.error(f"Error ensuring element in viewport: {str(e)}")
 
     def quit(self):
         """Close the browser and clean up."""
